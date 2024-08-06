@@ -1,6 +1,8 @@
 import json
 
-from fastapi import FastAPI
+from random import randint
+
+from fastapi import FastAPI, HTTPException
 
 from models import Composer, ComposerRequest, ComposerResponse, Piece
 
@@ -42,21 +44,40 @@ async def get_pieces() -> list[Piece]:
 
 @app.post("/composers")
 async def post_composers(new_composer: ComposerRequest) -> ComposerResponse:
-    composer_id = len(composers)
+    composer_id = randint(1, 999)
+    ok_id = False
+    id_list = []
+    for i in composers:
+        id_list.append(i.composer_id)
+
+    while not ok_id:
+        if composer_id in id_list:
+            composer_id = randint(1, 999)
+        else:
+            ok_id = True
+    
+
     composer = Composer(
         name=new_composer.name,
         composer_id=composer_id,
         home_country=new_composer.home_country
     )
-    composers.append(None)
-    composers[composer_id] = composer
+
+    composers.append(composer)
     return ComposerResponse(composer_id=composer_id)
     #comp_list.append(new_composer)
 
 
 @app.post("/pieces")
 async def post_pieces(new_piece: Piece) -> None:
-    pieces.append(new_piece)
+    id_list = []
+    for i in composers:
+        id_list.append(i.composer_id)
+
+    if new_piece.composer_id not in id_list:
+        raise HTTPException(status_code=400, detail="Composer Not Found")
+    else:
+        pieces.append(new_piece)
 
 
 @app.put("/composers/{composer_id}")
@@ -70,25 +91,44 @@ async def update_composer(composer_id: int, updated_composer: ComposerRequest):
 
 @app.put("/pieces/{name}")
 async def update_piece(name: str, updated_piece: Piece):
-    pieces[name] = Piece(
-        name=name,
-        alt_name=updated_piece.alt_name,
-        difficulty=updated_piece.difficulty,
-        composer_id=updated_piece.composer_id
-    )
-    return Composer(name=name)
+    name_list = []
+    for i in pieces:
+        name_list.append(i.name)
+
+    id_list = []
+    for i in composers:
+        id_list.append(i.composer_id)
+
+    if name not in name_list:
+        if updated_piece.composer_id not in id_list:
+            raise HTTPException(status_code=400, detail="Composer Not Found")
+        else:
+            pieces.append(updated_piece)        
+    else:
+        name_index = name_list.index(name)
+        pieces[name_index] = Piece(
+            name=name,
+            alt_name=updated_piece.alt_name,
+            difficulty=updated_piece.difficulty,
+            composer_id=updated_piece.composer_id
+        )
+        return
 
 
 @app.delete("/composers/{composer_id}")
 async def delete_composer(composer_id: int) -> None:
     composers.pop(composer_id)
+    return
 
 
 @app.delete("/pieces/{name}")
 async def delete_piece(name: str) -> None:
-    for i in range(len(pieces)):
-        if pieces[i-1].name == name:
-            pieces.pop(i-1)
+    for index, i in enumerate(pieces):
+        if i.name == name:
+            pieces.pop(index)
+            return
+        else:
+            raise HTTPException(status_code=400, detail="Piece does not exist")
 
 
 
